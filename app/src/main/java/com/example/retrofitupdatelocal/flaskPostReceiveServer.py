@@ -10,10 +10,10 @@ def upload():
         filename = secure_filename(file.filename)
         file.save('uploads/' + filename)
         print("fileuploadedsuccessfull;")
-        return 'File uploaded successfully'
+        return {'success':True,'message':'File uploaded successfully'}
     else:
         print("fileuploadedunsuccessfull;")
-        return 'no file uploaded'
+        return {'success':False,'message':'File upload unsuccessful.'}
 
 if __name__ == '__main__':
     app.run(debug=True)
