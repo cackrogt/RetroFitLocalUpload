@@ -11,15 +11,19 @@ import android.os.Bundle;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
+import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.IOException;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
 import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -57,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
         btnUpload.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                //uselessFunction();
                 uploadFile();
             }
         });
@@ -156,42 +161,104 @@ public class MainActivity extends AppCompatActivity {
         return 0;
     }
 
+    private String getMimeType(String path) {
+
+        String extension = MimeTypeMap.getFileExtensionFromUrl(path);
+
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+    }
+    ProgressDialog progress;
+    public void uselessFunction(){
+
+            progress = new ProgressDialog(MainActivity.this);
+            progress.setTitle("Uploading");
+            progress.setMessage("Please wait...");
+            progress.show();
+
+            Thread t = new Thread(new Runnable() {
+                @Override
+                public void run() {
+
+                    progressDialog.show();
+
+                    // Map is used to multipart the file using okhttp3.RequestBody
+                    File file = new File(mediaPath);
+                    //File f  = new File(data.getStringExtra(FilePickerActivity.RESULT_FILE_PATH));
+                    String content_type  = getMimeType(file.getPath());
+
+                    String file_path = file.getAbsolutePath();
+                    OkHttpClient client = new OkHttpClient();
+                    RequestBody file_body = RequestBody.create(MediaType.parse(content_type),file);
+
+                    RequestBody request_body = new MultipartBody.Builder()
+                            .setType(MultipartBody.FORM)
+                            .addFormDataPart("type",content_type)
+                            .addFormDataPart("uploaded_file",file_path.substring(file_path.lastIndexOf("/")+1), file_body)
+                            .build();
+
+                    Request request = new Request.Builder()
+                            .url("URL_TO_THE_SERVER/YOUR_SCRIPT.php")
+                            .post(request_body)
+                            .build();
+
+                    try {
+                        okhttp3.Response response = client.newCall(request).execute();
+
+                        if(!response.isSuccessful()){
+                            throw new IOException("Error : "+response);
+                        }
+                        progress.dismiss();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+            t.start();
+    }
+
     // Uploading Image/Video
     private void uploadFile() {
         progressDialog.show();
 
-        // Map is used to multipart the file using okhttp3.RequestBody
-        File file = new File(mediaPath);
-
-        // Parsing any Media type file
-        RequestBody requestBody = RequestBody.create(MediaType.parse("*/*"), file);
-        MultipartBody.Part fileToUpload = MultipartBody.Part.createFormData("file", file.getName(), requestBody);
-        RequestBody filename = RequestBody.create(MediaType.parse("text/plain"), file.getName());
-
-        ApiConfig getResponse = AppConfig.getRetrofit().create(ApiConfig.class);
-        Call<ServerResponse> call = getResponse.uploadFile(fileToUpload, filename);
-        call.enqueue(new Callback<ServerResponse>() {
+        Thread t = new Thread(new Runnable() {
             @Override
-            public void onResponse(Call<ServerResponse> call, Response<ServerResponse> response) {
-                ServerResponse serverResponse = response.body();
-                if (serverResponse != null) {
-                    if (serverResponse.getSuccess()) {
-                        Toast.makeText(getApplicationContext(), serverResponse.getMessage(), Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(getApplicationContext(), serverResponse.getMessage(), Toast.LENGTH_SHORT).show();
+            public void run() {
+
+                // Map is used to multipart the file using okhttp3.RequestBody
+                File file = new File(mediaPath);
+
+                // Parsing any Media type file
+                RequestBody requestBody = RequestBody.create(MediaType.parse("*/*"), file);
+                MultipartBody.Part fileToUpload = MultipartBody.Part.createFormData("file", file.getName(), requestBody);
+                RequestBody filename = RequestBody.create(MediaType.parse("text/plain"), file.getName());
+
+                ApiConfig getResponse = AppConfig.getRetrofit().create(ApiConfig.class);
+                Call<ServerResponse> call = getResponse.uploadFile(fileToUpload, filename);
+                call.enqueue(new Callback<ServerResponse>() {
+                    @Override
+                    public void onResponse(Call<ServerResponse> call, Response<ServerResponse> response) {
+                        ServerResponse serverResponse = response.body();
+                        if (serverResponse != null) {
+                            if (serverResponse.getSuccess()) {
+                                Toast.makeText(getApplicationContext(), serverResponse.getMessage(), Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(getApplicationContext(), serverResponse.getMessage(), Toast.LENGTH_SHORT).show();
+                            }
+                        } else {
+                            assert serverResponse != null;
+                            Log.v("Response", serverResponse.toString());
+                        }
+                        progressDialog.dismiss();
                     }
-                } else {
-                    assert serverResponse != null;
-                    Log.v("Response", serverResponse.toString());
-                }
-                progressDialog.dismiss();
-            }
 
-            @Override
-            public void onFailure(Call<ServerResponse> call, Throwable t) {
+                    @Override
+                    public void onFailure(Call<ServerResponse> call, Throwable t) {
 
+                    }
+                });
             }
         });
+        t.start();
     }
 
     // Uploading Image/Video
