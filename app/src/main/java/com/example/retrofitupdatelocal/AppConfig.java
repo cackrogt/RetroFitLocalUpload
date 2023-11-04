@@ -7,7 +7,7 @@ class AppConfig {
 
     //private static String BASE_URL = "http://mushtaq.16mb.com/";
 
-    private static String BASE_URL = "https://368b-122-171-21-109.ngrok-free.app";// https://e15d-122-171-21-109.ngrok-free.app
+    public static String BASE_URL = "https://e0ba-122-171-21-109.ngrok-free.app";// https://e15d-122-171-21-109.ngrok-free.app
 
 
     static Retrofit getRetrofit() {

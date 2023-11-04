@@ -41,6 +41,7 @@ public class MainActivity extends AppCompatActivity {
     String[] mediaColumns = {MediaStore.Video.Media._ID};
     ProgressDialog progressDialog;
     TextView str1, str2;
+    int image, video;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -114,6 +115,7 @@ public class MainActivity extends AppCompatActivity {
                 str1.setText(mediaPath);
                 // Set the Image in ImageView for Previewing the Media
                 imgView.setImageBitmap(BitmapFactory.decodeFile(mediaPath));
+                image = 1; video = 0;
                 cursor.close();
 
             } // When an Video is picked
@@ -133,6 +135,7 @@ public class MainActivity extends AppCompatActivity {
                 str2.setText(mediaPath1);
                 // Set the Video Thumb in ImageView Previewing the Media
                 imgView.setImageBitmap(getThumbnailPathForLocalFile(MainActivity.this, selectedVideo));
+                image = 0; video = 1;
                 cursor.close();
 
             } else {
@@ -164,57 +167,14 @@ public class MainActivity extends AppCompatActivity {
     private String getMimeType(String path) {
 
         String extension = MimeTypeMap.getFileExtensionFromUrl(path);
-
+        Log.i("MainActivity", "TinSeln "+extension);
+        if(extension == null || extension == ""){
+            return MimeTypeMap.getSingleton().getMimeTypeFromExtension("mp4");
+        }
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
     }
+
     ProgressDialog progress;
-    public void uselessFunction(){
-
-            progress = new ProgressDialog(MainActivity.this);
-            progress.setTitle("Uploading");
-            progress.setMessage("Please wait...");
-            progress.show();
-
-            Thread t = new Thread(new Runnable() {
-                @Override
-                public void run() {
-
-                    progressDialog.show();
-
-                    // Map is used to multipart the file using okhttp3.RequestBody
-                    File file = new File(mediaPath);
-                    //File f  = new File(data.getStringExtra(FilePickerActivity.RESULT_FILE_PATH));
-                    String content_type  = getMimeType(file.getPath());
-
-                    String file_path = file.getAbsolutePath();
-                    OkHttpClient client = new OkHttpClient();
-                    RequestBody file_body = RequestBody.create(MediaType.parse(content_type),file);
-
-                    RequestBody request_body = new MultipartBody.Builder()
-                            .setType(MultipartBody.FORM)
-                            .addFormDataPart("type",content_type)
-                            .addFormDataPart("uploaded_file",file_path.substring(file_path.lastIndexOf("/")+1), file_body)
-                            .build();
-
-                    Request request = new Request.Builder()
-                            .url("URL_TO_THE_SERVER/YOUR_SCRIPT.php")
-                            .post(request_body)
-                            .build();
-
-                    try {
-                        okhttp3.Response response = client.newCall(request).execute();
-
-                        if(!response.isSuccessful()){
-                            throw new IOException("Error : "+response);
-                        }
-                        progress.dismiss();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            });
-            t.start();
-    }
 
     // Uploading Image/Video
     private void uploadFile() {
@@ -225,15 +185,27 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
 
                 // Map is used to multipart the file using okhttp3.RequestBody
-                File file = new File(mediaPath);
+                File file;
+                //we should be able to remove this, i am just sleep deprived at this point.
+                if(video == 1 && image == 0) {
+                    file = new File(mediaPath1);
+                }
+                else{
+                    file = new File(mediaPath);
+                }
 
-                // Parsing any Media type file
+                String content_type  = getMimeType(file.getPath());
+                String file_path = file.getAbsolutePath();
+                // Parsing any Media type file and if we dont find it we return mp4
+                RequestBody file_body = RequestBody.create(file, MediaType.parse(content_type));
+
+
                 RequestBody requestBody = RequestBody.create(MediaType.parse("*/*"), file);
                 MultipartBody.Part fileToUpload = MultipartBody.Part.createFormData("file", file.getName(), requestBody);
-                RequestBody filename = RequestBody.create(MediaType.parse("text/plain"), file.getName());
 
                 ApiConfig getResponse = AppConfig.getRetrofit().create(ApiConfig.class);
-                Call<ServerResponse> call = getResponse.uploadFile(fileToUpload, filename);
+                Call<ServerResponse> call = getResponse.uploadFile(fileToUpload, file_body);
+
                 call.enqueue(new Callback<ServerResponse>() {
                     @Override
                     public void onResponse(Call<ServerResponse> call, Response<ServerResponse> response) {
