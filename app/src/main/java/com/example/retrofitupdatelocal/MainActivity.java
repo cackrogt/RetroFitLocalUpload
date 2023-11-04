@@ -165,9 +165,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String getMimeType(String path) {
-
-        String extension = MimeTypeMap.getFileExtensionFromUrl(path);
-        Log.i("MainActivity", "TinSeln "+extension);
+        String extension = path.substring(path.lastIndexOf(".") + 1);
         if(extension == null || extension == ""){
             return MimeTypeMap.getSingleton().getMimeTypeFromExtension("mp4");
         }
