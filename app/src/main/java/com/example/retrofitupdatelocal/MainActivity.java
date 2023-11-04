@@ -236,7 +236,7 @@ public class MainActivity extends AppCompatActivity {
                 RequestBody requestBody = RequestBody.create(MediaType.parse("*/*"), file);
                 MultipartBody.Part fileToUpload = MultipartBody.Part.createFormData("file", file.getName(), requestBody);
 
-                ApiConfig getResponse = AppConfig.getRetrofit().create(ApiConfig.class);
+                ApiConfig getResponse = AppConfig.getRetrofit(serverUrl).create(ApiConfig.class);
                 Call<ServerResponse> call = getResponse.uploadFile(fileToUpload, file_body);
 
                 call.enqueue(new Callback<ServerResponse>() {
