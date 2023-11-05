@@ -3,6 +3,7 @@ package com.example.retrofitupdatelocal;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -12,7 +13,9 @@ import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.webkit.MimeTypeMap;
+import android.webkit.URLUtil;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -28,20 +31,18 @@ import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
-
-import android.os.Bundle;
-
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
-    Button btnUpload, btnMulUpload, btnPickImage, btnPickVideo;
+    Button btnUpload, btnMulUpload, btnPickImage, btnPickVideo, btnSaveUrl;
     String mediaPath, mediaPath1;
     ImageView imgView;
     String[] mediaColumns = {MediaStore.Video.Media._ID};
     ProgressDialog progressDialog;
     TextView str1, str2;
     int image, video;
+    EditText serverUrlInput;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,22 +56,52 @@ public class MainActivity extends AppCompatActivity {
         btnMulUpload = (Button) findViewById(R.id.uploadMultiple);
         btnPickImage = (Button) findViewById(R.id.pick_img);
         btnPickVideo = (Button) findViewById(R.id.pick_vdo);
+        btnSaveUrl = (Button) findViewById(R.id.save_server_url_btn);
         imgView = (ImageView) findViewById(R.id.preview);
         str1 = (TextView) findViewById(R.id.filename1);
         str2 = (TextView) findViewById(R.id.filename2);
+        serverUrlInput = (EditText) findViewById(R.id.server_url_edittext);
+
+        String saved_url_key = getString(R.string.saved_server_url_key);
+        SharedPreferences sharedPref = getSharedPreferences(saved_url_key,MODE_PRIVATE);
+        boolean hasSavedUrlKey = sharedPref.contains(saved_url_key);
+        if(hasSavedUrlKey) {
+            serverUrlInput.setText(getURLFromSharedPreferences(saved_url_key,sharedPref));
+        }
+
+        btnSaveUrl.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String inputUrl = String.valueOf(serverUrlInput.getText());
+                String savedUrl = getURLFromSharedPreferences(saved_url_key,sharedPref);
+                if(savedUrl!=null && savedUrl.equalsIgnoreCase(inputUrl.toLowerCase())) {
+                    showToast("Same Url entered",Toast.LENGTH_LONG);
+                    return;
+                }
+                if(URLUtil.isValidUrl(inputUrl) && (URLUtil.isHttpsUrl(inputUrl) ||
+                        URLUtil.isHttpsUrl(inputUrl))) {
+                    SharedPreferences.Editor editor =  sharedPref.edit();
+                    editor.putString(saved_url_key,inputUrl);
+                    editor.apply();
+                    showToast("Server URL saved",Toast.LENGTH_SHORT);
+                }
+                else {
+                    showToast("Invalid URL",Toast.LENGTH_SHORT);
+                }
+            }
+        });
 
         btnUpload.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                //uselessFunction();
-                uploadFile();
+                uploadFile(getURLFromSharedPreferences(saved_url_key,sharedPref));
             }
         });
 
         btnMulUpload.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                uploadMultipleFiles();
+                uploadMultipleFiles(getURLFromSharedPreferences(saved_url_key,sharedPref));
             }
         });
 
@@ -175,7 +206,11 @@ public class MainActivity extends AppCompatActivity {
     ProgressDialog progress;
 
     // Uploading Image/Video
-    private void uploadFile() {
+    private void uploadFile(String serverUrl) {
+        if(serverUrl == null || serverUrl.isEmpty()) {
+            showToast("Server Url is not valid.",Toast.LENGTH_SHORT);
+            return;
+        }
         progressDialog.show();
 
         Thread t = new Thread(new Runnable() {
@@ -232,7 +267,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Uploading Image/Video
-    private void uploadMultipleFiles() {
+    private void uploadMultipleFiles(String serverUrl) {
+        if(serverUrl == null || serverUrl.isEmpty()) {
+            showToast("Server Url is not valid.",Toast.LENGTH_SHORT);
+            return;
+        }
         progressDialog.show();
 
         // Map is used to multipart the file using okhttp3.RequestBody
@@ -246,7 +285,7 @@ public class MainActivity extends AppCompatActivity {
         MultipartBody.Part fileToUpload1 = MultipartBody.Part.createFormData("file1", file.getName(), requestBody1);
         MultipartBody.Part fileToUpload2 = MultipartBody.Part.createFormData("file2", file1.getName(), requestBody2);
 
-        ApiConfig getResponse = AppConfig.getRetrofit().create(ApiConfig.class);
+        ApiConfig getResponse = AppConfig.getRetrofit(serverUrl).create(ApiConfig.class);
         Call<ServerResponse> call = getResponse.uploadMulFile(fileToUpload1, fileToUpload2);
         call.enqueue(new Callback<ServerResponse>() {
             @Override
@@ -254,9 +293,9 @@ public class MainActivity extends AppCompatActivity {
                 ServerResponse serverResponse = response.body();
                 if (serverResponse != null) {
                     if (serverResponse.getSuccess()) {
-                        Toast.makeText(getApplicationContext(), serverResponse.getMessage(), Toast.LENGTH_SHORT).show();
+                        showToast(serverResponse.getMessage(),Toast.LENGTH_SHORT);
                     } else {
-                        Toast.makeText(getApplicationContext(), serverResponse.getMessage(), Toast.LENGTH_SHORT).show();
+                        showToast(serverResponse.getMessage(),Toast.LENGTH_SHORT);
                     }
                 } else {
                     assert serverResponse != null;
@@ -270,5 +309,16 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
+    }
+
+    private void showToast(String text, int duration) {
+        Toast.makeText(getApplicationContext(), text, duration).show();
+    }
+
+    private String getURLFromSharedPreferences(String key, SharedPreferences prefs) {
+        if(key == null || key.isEmpty()) {
+            return "";
+        }
+        return prefs.getString(key,null);
     }
 }
