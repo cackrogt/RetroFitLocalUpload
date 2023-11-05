@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">RetroFitUpdateLocal</string>
+    <string name="server_url_text_placeholder">Enter Server URL</string>
+    <string name="save_server_url_btn_text">Save Server URL</string>
+    <string name="saved_server_url_key">saved_url</string>
 </resources>
