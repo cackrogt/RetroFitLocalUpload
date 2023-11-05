@@ -12,6 +12,7 @@ import android.os.Bundle;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
+import android.webkit.MimeTypeMap;
 import android.webkit.URLUtil;
 import android.widget.Button;
 import android.widget.EditText;
@@ -20,9 +21,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.IOException;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
 import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -37,8 +41,8 @@ public class MainActivity extends AppCompatActivity {
     String[] mediaColumns = {MediaStore.Video.Media._ID};
     ProgressDialog progressDialog;
     TextView str1, str2;
+    int image, video;
     EditText serverUrlInput;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -142,6 +146,7 @@ public class MainActivity extends AppCompatActivity {
                 str1.setText(mediaPath);
                 // Set the Image in ImageView for Previewing the Media
                 imgView.setImageBitmap(BitmapFactory.decodeFile(mediaPath));
+                image = 1; video = 0;
                 cursor.close();
 
             } // When an Video is picked
@@ -161,6 +166,7 @@ public class MainActivity extends AppCompatActivity {
                 str2.setText(mediaPath1);
                 // Set the Video Thumb in ImageView Previewing the Media
                 imgView.setImageBitmap(getThumbnailPathForLocalFile(MainActivity.this, selectedVideo));
+                image = 0; video = 1;
                 cursor.close();
 
             } else {
@@ -189,6 +195,16 @@ public class MainActivity extends AppCompatActivity {
         return 0;
     }
 
+    private String getMimeType(String path) {
+        String extension = path.substring(path.lastIndexOf(".") + 1);
+        if(extension == null || extension == ""){
+            return MimeTypeMap.getSingleton().getMimeTypeFromExtension("mp4");
+        }
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+    }
+
+    ProgressDialog progress;
+
     // Uploading Image/Video
     private void uploadFile(String serverUrl) {
         if(serverUrl == null || serverUrl.isEmpty()) {
@@ -197,38 +213,57 @@ public class MainActivity extends AppCompatActivity {
         }
         progressDialog.show();
 
-        // Map is used to multipart the file using okhttp3.RequestBody
-        File file = new File(mediaPath);
-
-        // Parsing any Media type file
-        RequestBody requestBody = RequestBody.create(MediaType.parse("*/*"), file);
-        MultipartBody.Part fileToUpload = MultipartBody.Part.createFormData("file", file.getName(), requestBody);
-        RequestBody filename = RequestBody.create(MediaType.parse("text/plain"), file.getName());
-
-        ApiConfig getResponse = AppConfig.getRetrofit(serverUrl).create(ApiConfig.class);
-        Call<ServerResponse> call = getResponse.uploadFile(fileToUpload, filename);
-        call.enqueue(new Callback<ServerResponse>() {
+        Thread t = new Thread(new Runnable() {
             @Override
-            public void onResponse(Call<ServerResponse> call, Response<ServerResponse> response) {
-                ServerResponse serverResponse = response.body();
-                if (serverResponse != null) {
-                    if (serverResponse.getSuccess()) {
-                        showToast(serverResponse.getMessage(),Toast.LENGTH_SHORT);
-                    } else {
-                        showToast(serverResponse.getMessage(),Toast.LENGTH_SHORT);
-                    }
-                } else {
-                    assert serverResponse != null;
-                    Log.v("Response", serverResponse.toString());
+            public void run() {
+
+                // Map is used to multipart the file using okhttp3.RequestBody
+                File file;
+                //we should be able to remove this, i am just sleep deprived at this point.
+                if(video == 1 && image == 0) {
+                    file = new File(mediaPath1);
                 }
-                progressDialog.dismiss();
-            }
+                else{
+                    file = new File(mediaPath);
+                }
 
-            @Override
-            public void onFailure(Call<ServerResponse> call, Throwable t) {
+                String content_type  = getMimeType(file.getPath());
+                String file_path = file.getAbsolutePath();
+                // Parsing any Media type file and if we dont find it we return mp4
+                RequestBody file_body = RequestBody.create(file, MediaType.parse(content_type));
 
+
+                RequestBody requestBody = RequestBody.create(MediaType.parse("*/*"), file);
+                MultipartBody.Part fileToUpload = MultipartBody.Part.createFormData("file", file.getName(), requestBody);
+
+                ApiConfig getResponse = AppConfig.getRetrofit().create(ApiConfig.class);
+                Call<ServerResponse> call = getResponse.uploadFile(fileToUpload, file_body);
+
+                call.enqueue(new Callback<ServerResponse>() {
+                    @Override
+                    public void onResponse(Call<ServerResponse> call, Response<ServerResponse> response) {
+                        ServerResponse serverResponse = response.body();
+                        if (serverResponse != null) {
+                            if (serverResponse.getSuccess()) {
+                                Toast.makeText(getApplicationContext(), serverResponse.getMessage(), Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(getApplicationContext(), serverResponse.getMessage(), Toast.LENGTH_SHORT).show();
+                            }
+                        } else {
+                            assert serverResponse != null;
+                            Log.v("Response", serverResponse.toString());
+                        }
+                        progressDialog.dismiss();
+                    }
+
+                    @Override
+                    public void onFailure(Call<ServerResponse> call, Throwable t) {
+
+                    }
+                });
             }
         });
+        t.start();
     }
 
     // Uploading Image/Video
